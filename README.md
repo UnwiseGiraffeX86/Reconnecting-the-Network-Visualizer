@@ -5,7 +5,7 @@ A visual coding challenge platform designed to test and visualize pathfinding al
 > **Note:** This project was inspired by the "Reconnecting the Network" challenge from the **BESTEM V14 Phase 1 Preselection**. I decided to expand it into a full-featured visualization tool for my GitHub portfolio.
 
 <p align="center">
-  <img src="static/preview.png" alt="Arcane Grid Visualization" width="50%" height="50%">
+  <img src="static/preview.png" alt="Arcane Grid Visualization" width="100%" height="100%">
 </p>
 
 ## 🎮 Features
