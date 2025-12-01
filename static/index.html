@@ -158,7 +158,10 @@
     <div id="results-modal" class="modal">
         <div class="modal-content">
             <span class="close-modal" id="close-results">&times;</span>
-            <h2>Batch Execution Results</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>Batch Execution Results</h2>
+                <button id="export-btn" class="action-btn" style="padding: 5px 10px;">Export CSV</button>
+            </div>
             <div id="batch-progress-bar"><div class="progress-fill"></div></div>
             <div id="batch-status">Ready to run</div>
             <table id="results-table">
@@ -168,6 +171,8 @@
                         <th>Status</th>
                         <th>Time</th>
                         <th>Message</th>
+                        <th>Actual Output</th>
+                        <th>Expected Output</th>
                     </tr>
                 </thead>
                 <tbody></tbody>

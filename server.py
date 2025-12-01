@@ -1,5 +1,6 @@
 import os
 import subprocess
+import tempfile
 from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__, static_folder='static', static_url_path='')
@@ -89,82 +90,78 @@ def run_code():
         return jsonify({'success': False, 'error': str(e)})
 
 def run_java(code, input_data):
-    java_file = os.path.join(WORKING_DIR, 'Solution.java')
-    class_file = os.path.join(WORKING_DIR, 'Solution.class')
-    
-    if os.path.exists(class_file):
-        os.remove(class_file)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        java_file = os.path.join(temp_dir, 'Solution.java')
         
-    with open(java_file, 'w') as f:
-        f.write(code)
-        
-    compile_process = subprocess.run(['javac', java_file], capture_output=True, text=True)
-    if compile_process.returncode != 0:
-        return jsonify({'success': False, 'error': 'Compilation Error:\n' + compile_process.stderr})
-        
-    try:
-        run_process = subprocess.run(
-            ['java', '-cp', WORKING_DIR, 'Solution'], 
-            input=input_data, 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
-        if run_process.returncode != 0:
-             return jsonify({'success': False, 'error': 'Runtime Error:\n' + run_process.stderr})
-        return jsonify({'success': True, 'output': run_process.stdout})
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Time Limit Exceeded'})
+        with open(java_file, 'w') as f:
+            f.write(code)
+            
+        compile_process = subprocess.run(['javac', java_file], capture_output=True, text=True)
+        if compile_process.returncode != 0:
+            return jsonify({'success': False, 'error': 'Compilation Error:\n' + compile_process.stderr})
+            
+        try:
+            run_process = subprocess.run(
+                ['java', '-cp', temp_dir, 'Solution'], 
+                input=input_data, 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            if run_process.returncode != 0:
+                 return jsonify({'success': False, 'error': 'Runtime Error:\n' + run_process.stderr})
+            return jsonify({'success': True, 'output': run_process.stdout})
+        except subprocess.TimeoutExpired:
+            return jsonify({'success': False, 'error': 'Time Limit Exceeded'})
 
 def run_python(code, input_data):
-    py_file = os.path.join(WORKING_DIR, 'solution.py')
-    
-    with open(py_file, 'w') as f:
-        f.write(code)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        py_file = os.path.join(temp_dir, 'solution.py')
         
-    try:
-        # Use 'python' or 'python3' depending on environment. Assuming 'python' for Windows.
-        run_process = subprocess.run(
-            ['python', py_file], 
-            input=input_data, 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
-        if run_process.returncode != 0:
-             return jsonify({'success': False, 'error': 'Runtime Error:\n' + run_process.stderr})
-        return jsonify({'success': True, 'output': run_process.stdout})
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Time Limit Exceeded'})
+        with open(py_file, 'w') as f:
+            f.write(code)
+            
+        try:
+            # Use 'python' or 'python3' depending on environment. Assuming 'python' for Windows.
+            run_process = subprocess.run(
+                ['python', py_file], 
+                input=input_data, 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            if run_process.returncode != 0:
+                 return jsonify({'success': False, 'error': 'Runtime Error:\n' + run_process.stderr})
+            return jsonify({'success': True, 'output': run_process.stdout})
+        except subprocess.TimeoutExpired:
+            return jsonify({'success': False, 'error': 'Time Limit Exceeded'})
 
 def run_cpp(code, input_data):
-    cpp_file = os.path.join(WORKING_DIR, 'solution.cpp')
-    exe_file = os.path.join(WORKING_DIR, 'solution.exe')
-    
-    if os.path.exists(exe_file):
-        os.remove(exe_file)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        cpp_file = os.path.join(temp_dir, 'solution.cpp')
+        exe_file = os.path.join(temp_dir, 'solution.exe')
         
-    with open(cpp_file, 'w') as f:
-        f.write(code)
-        
-    # Compile with g++
-    compile_process = subprocess.run(['g++', cpp_file, '-o', exe_file], capture_output=True, text=True)
-    if compile_process.returncode != 0:
-        return jsonify({'success': False, 'error': 'Compilation Error:\n' + compile_process.stderr})
-        
-    try:
-        run_process = subprocess.run(
-            [exe_file], 
-            input=input_data, 
-            capture_output=True, 
-            text=True, 
-            timeout=5
-        )
-        if run_process.returncode != 0:
-             return jsonify({'success': False, 'error': 'Runtime Error:\n' + run_process.stderr})
-        return jsonify({'success': True, 'output': run_process.stdout})
-    except subprocess.TimeoutExpired:
-        return jsonify({'success': False, 'error': 'Time Limit Exceeded'})
+        with open(cpp_file, 'w') as f:
+            f.write(code)
+            
+        # Compile with g++
+        compile_process = subprocess.run(['g++', cpp_file, '-o', exe_file], capture_output=True, text=True)
+        if compile_process.returncode != 0:
+            return jsonify({'success': False, 'error': 'Compilation Error:\n' + compile_process.stderr})
+            
+        try:
+            run_process = subprocess.run(
+                [exe_file], 
+                input=input_data, 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
+            if run_process.returncode != 0:
+                 return jsonify({'success': False, 'error': 'Runtime Error:\n' + run_process.stderr})
+            return jsonify({'success': True, 'output': run_process.stdout})
+        except subprocess.TimeoutExpired:
+            return jsonify({'success': False, 'error': 'Time Limit Exceeded'})
 
 
 if __name__ == '__main__':

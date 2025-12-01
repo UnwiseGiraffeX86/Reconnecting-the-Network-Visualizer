@@ -58,6 +58,9 @@ class Visualizer {
         document.getElementById('problem-btn').addEventListener('click', () => {
             document.getElementById('problem-modal').style.display = 'block';
         });
+
+        // Export Results
+        document.getElementById('export-btn').addEventListener('click', () => this.exportResults());
         
         // Debug controls
         document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
@@ -564,7 +567,15 @@ class Visualizer {
 
             // Connectivity check
             if (endRuneId !== startRuneId) {
-                errors.push(`Path for Rune ${startRuneId} does not end at the matching rune.`);
+                // Exception: Allow connection if both runes appear only once in the input (mismatched pair)
+                const startCount = runePairs.get(startRuneId).length;
+                const endCount = runePairs.get(endRuneId).length;
+
+                if (startCount === 1 && endCount === 1) {
+                    // This is a valid connection between two singleton runes
+                } else {
+                    errors.push(`Path for Rune ${startRuneId} does not end at the matching rune (Ends at ${endRuneId}).`);
+                }
             }
 
             // Collision check
@@ -895,131 +906,191 @@ class Visualizer {
         let passed = 0;
         let failed = 0;
         
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            statusText.textContent = `Running ${file} (${i+1}/${files.length})...`;
-            progressBar.style.width = `${((i) / files.length) * 100}%`;
-            
+        let completed = 0;
+        this.batchResults = new Array(files.length);
+        
+        // Pre-create rows
+        const rows = [];
+        files.forEach(file => {
             const row = document.createElement('tr');
-            row.innerHTML = `<td>${file}</td><td>Running...</td><td>-</td><td>-</td>`;
+            row.innerHTML = `<td>${file}</td><td>Waiting...</td><td>-</td><td>-</td><td>-</td><td>-</td>`;
             tableBody.appendChild(row);
-            
-            const startTime = performance.now();
-            
-            try {
-                // Fetch input first to validate later
-                const caseResp = await fetch(`/api/case/${file}`);
-                const caseData = await caseResp.json();
+            rows.push(row);
+        });
+
+        const promises = files.map((file, index) => {
+            return (async () => {
+                const row = rows[index];
+                row.cells[1].textContent = 'Running...';
                 
-                // Run code
-                const runResp = await fetch('/api/run', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        code: code,
-                        input: caseData.input,
-                        language: this.currentLanguage
-                    })
-                });
+                const startTime = performance.now();
                 
-                const result = await runResp.json();
-                const endTime = performance.now();
-                const duration = (endTime - startTime).toFixed(0) + 'ms';
-                
-                if (result.success) {
-                    // Validate output
-                    // We need to parse the input string to get runes for validation
-                    // This is a bit hacky: we temporarily set currentInput/runes to validate, then restore?
-                    // Or better: refactor validation to take parsed input.
-                    // For now, let's just parse locally.
+                let resultObj = {
+                    file: file,
+                    status: 'ERROR',
+                    time: '-',
+                    message: 'Unknown error',
+                    actual: '',
+                    expected: ''
+                };
+
+                try {
+                    // Fetch input first to validate later
+                    const caseResp = await fetch(`/api/case/${file}`);
+                    const caseData = await caseResp.json();
+                    resultObj.expected = caseData.output || '';
                     
-                    const { rows, cols, runes } = this.parseInput(caseData.input);
+                    // Run code
+                    const runResp = await fetch('/api/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code,
+                            input: caseData.input,
+                            language: this.currentLanguage
+                        })
+                    });
                     
-                    // Parse output paths
-                    const parseOutput = (str) => {
-                        const lines = str.trim().split('\n');
-                        const validLines = lines.filter(l => l.trim().length > 0);
-                        const p = [];
-                        const map = new Map();
-                        if (validLines.length > 0) {
-                            for (let k = 1; k < validLines.length; k++) {
-                                const parts = validLines[k].trim().split(/\s+/);
-                                if (parts.length >= 2) {
-                                    const origin = parseInt(parts[0]);
-                                    const dirs = parts.slice(2);
-                                    p.push({ origin, directions: dirs });
-                                    map.set(origin, dirs.join(' '));
-                                }
-                            }
-                        }
-                        return { paths: p, map, count: p.length };
+                    const result = await runResp.json();
+                    const endTime = performance.now();
+                    const duration = (endTime - startTime).toFixed(0) + 'ms';
+                    resultObj.time = duration;
+                    resultObj.actual = result.output || result.error || '';
+                    
+                    const formatOutput = (text) => {
+                        if (!text) return '-';
+                        return `<div style="max-height: 100px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 0.8em; background: #222; padding: 5px;">${text}</div>`;
                     };
 
-                    const userResult = parseOutput(result.output);
-                    const errors = this.validateSolution(userResult.paths, runes, rows, cols, true);
-                    
-                    if (errors.length === 0) {
-                        // Physical validation passed. Now check against expected output.
-                        let matchStatus = 'PASS';
-                        let message = 'All paths valid';
-                        let statusClass = 'status-pass';
-
-                        if (caseData.output && caseData.output.trim().length > 0) {
-                            const expectedResult = parseOutput(caseData.output);
-                            
-                            if (userResult.count !== expectedResult.count) {
-                                matchStatus = 'FAIL';
-                                message = `Count mismatch: Got ${userResult.count}, Expected ${expectedResult.count}`;
-                                statusClass = 'status-fail';
-                                failed++;
-                            } else {
-                                // Check if paths match
-                                let mismatch = false;
-                                for (const [origin, dirStr] of userResult.map) {
-                                    if (expectedResult.map.get(origin) !== dirStr) {
-                                        mismatch = true;
-                                        break;
+                    if (result.success) {
+                        const { rows, cols, runes } = this.parseInput(caseData.input);
+                        
+                        const parseOutput = (str) => {
+                            const lines = str.trim().split('\n');
+                            const validLines = lines.filter(l => l.trim().length > 0);
+                            const p = [];
+                            const map = new Map();
+                            if (validLines.length > 0) {
+                                for (let k = 1; k < validLines.length; k++) {
+                                    const parts = validLines[k].trim().split(/\s+/);
+                                    if (parts.length >= 2) {
+                                        const origin = parseInt(parts[0]);
+                                        const dirs = parts.slice(2);
+                                        p.push({ origin, directions: dirs });
+                                        map.set(origin, dirs.join(' '));
                                     }
                                 }
+                            }
+                            return { paths: p, map, count: p.length };
+                        };
+
+                        const userResult = parseOutput(result.output);
+                        const errors = this.validateSolution(userResult.paths, runes, rows, cols, true);
+                        
+                        if (errors.length === 0) {
+                            let matchStatus = 'PASS';
+                            let message = 'All paths valid';
+                            let statusClass = 'status-pass';
+
+                            if (caseData.output && caseData.output.trim().length > 0) {
+                                const expectedResult = parseOutput(caseData.output);
                                 
-                                if (mismatch) {
+                                if (userResult.count !== expectedResult.count) {
                                     matchStatus = 'FAIL';
-                                    message = 'Valid paths, but mismatch with expected output';
+                                    message = `Count mismatch: Got ${userResult.count}, Expected ${expectedResult.count}`;
                                     statusClass = 'status-fail';
                                     failed++;
                                 } else {
-                                    passed++;
+                                    let mismatch = false;
+                                    for (const [origin, dirStr] of userResult.map) {
+                                        if (expectedResult.map.get(origin) !== dirStr) {
+                                            mismatch = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (mismatch) {
+                                        matchStatus = 'FAIL';
+                                        message = 'Valid paths, but mismatch with expected output';
+                                        statusClass = 'status-fail';
+                                        failed++;
+                                    } else {
+                                        passed++;
+                                    }
                                 }
+                            } else {
+                                message = 'Valid (No expected output)';
+                                passed++;
                             }
-                        } else {
-                            // No expected output to compare
-                            message = 'Valid (No expected output)';
-                            passed++;
-                        }
 
-                        row.innerHTML = `<td>${file}</td><td class="${statusClass}">${matchStatus}</td><td>${duration}</td><td>${message}</td>`;
+                            resultObj.status = matchStatus;
+                            resultObj.message = message;
+                            row.innerHTML = `<td>${file}</td><td class="${statusClass}">${matchStatus}</td><td>${duration}</td><td>${message}</td><td>${formatOutput(result.output)}</td><td>${formatOutput(caseData.output)}</td>`;
+                        } else {
+                            resultObj.status = 'FAIL';
+                            resultObj.message = errors[0];
+                            row.innerHTML = `<td>${file}</td><td class="status-fail">FAIL</td><td>${duration}</td><td>${errors[0]}</td><td>${formatOutput(result.output)}</td><td>${formatOutput(caseData.output)}</td>`;
+                            failed++;
+                        }
+                        
                     } else {
-                        row.innerHTML = `<td>${file}</td><td class="status-fail">FAIL</td><td>${duration}</td><td>${errors[0]}</td>`;
+                        resultObj.status = 'ERROR';
+                        resultObj.message = result.error.split('\n')[0];
+                        row.innerHTML = `<td>${file}</td><td class="status-error">ERROR</td><td>${duration}</td><td>${result.error.split('\n')[0]}</td><td>${formatOutput(result.error)}</td><td>${formatOutput(caseData.output)}</td>`;
                         failed++;
                     }
                     
-                } else {
-                    row.innerHTML = `<td>${file}</td><td class="status-error">ERROR</td><td>${duration}</td><td>${result.error.split('\n')[0]}</td>`;
+                } catch (e) {
+                    resultObj.message = e.message;
+                    row.innerHTML = `<td>${file}</td><td class="status-error">Sys Error</td><td>-</td><td>${e.message}</td><td>-</td><td>-</td>`;
                     failed++;
                 }
                 
-            } catch (e) {
-                row.innerHTML = `<td>${file}</td><td class="status-error">Sys Error</td><td>-</td><td>${e.message}</td>`;
-                failed++;
-            }
-            
-            // Scroll to bottom
-            const modalContent = document.querySelector('.modal-content');
-            // modalContent.scrollTop = modalContent.scrollHeight;
-        }
+                this.batchResults[index] = resultObj;
+                completed++;
+                progressBar.style.width = `${(completed / files.length) * 100}%`;
+                statusText.textContent = `Running tests... (${completed}/${files.length})`;
+            })();
+        });
+        
+        await Promise.all(promises);
         
         progressBar.style.width = '100%';
         statusText.textContent = `Completed: ${passed} Passed, ${failed} Failed.`;
+    }
+
+    exportResults() {
+        if (!this.batchResults || this.batchResults.length === 0) {
+            alert("No results to export. Run tests first.");
+            return;
+        }
+        
+        const headers = ["Test Case", "Status", "Time", "Message", "Actual Output", "Expected Output"];
+        const csvContent = [
+            headers.join(","),
+            ...this.batchResults.map(r => {
+                if (!r) return "";
+                const escape = (str) => `"${(str || '').replace(/"/g, '""')}"`;
+                return [
+                    escape(r.file),
+                    escape(r.status),
+                    escape(r.time),
+                    escape(r.message),
+                    escape(r.actual),
+                    escape(r.expected)
+                ].join(",");
+            })
+        ].join("\n");
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "test_results.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     // --- Editor Methods ---
