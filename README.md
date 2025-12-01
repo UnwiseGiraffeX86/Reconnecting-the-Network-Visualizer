@@ -1,4 +1,4 @@
-# Arcane Grid Reconnection (BESTEMv14)
+# Reconnecting the Network (BESTEMv14)
 
 A visual coding challenge platform designed to test and visualize pathfinding algorithms. The goal is to connect matching rune pairs on a grid without paths overlapping or crossing.
 
