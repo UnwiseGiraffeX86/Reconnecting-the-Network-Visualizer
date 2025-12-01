@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rune Network Visualizer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3>Test Cases</h3>
+                <div class="header-controls">
+                    <button id="mode-toggle-btn" title="Switch to Level Editor">✎</button>
+                    <button id="problem-btn" title="View Problem Statement">?</button>
+                </div>
+            </div>
+            
+            <!-- Editor Controls (Hidden by default) -->
+            <div id="editor-controls" class="editor-controls hidden">
+                <div class="control-group">
+                    <label>Grid Size:</label>
+                    <div class="input-group">
+                        <input type="number" id="edit-rows" value="10" min="2" max="14">
+                        <span>×</span>
+                        <input type="number" id="edit-cols" value="10" min="2" max="14">
+                    </div>
+                    <button id="resize-grid-btn" class="action-btn">New Grid</button>
+                </div>
+                <div class="control-group">
+                    <label>Active Rune:</label>
+                    <div class="rune-selector">
+                        <input type="number" id="rune-id" value="1" min="1">
+                        <div id="rune-preview" class="rune-preview"></div>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <button id="save-level-btn" class="primary-btn">Save Level</button>
+                    <input type="text" id="level-name" placeholder="custom_01" value="custom_01">
+                </div>
+                <div class="control-group">
+                    <p class="hint">Click to place/remove rune. Exactly 2 of each ID required.</p>
+                </div>
+            </div>
+
+            <ul id="file-list"></ul>
+
+            <!-- Snapshots Section -->
+            <div class="sidebar-header" style="margin-top: 20px; border-top: 1px solid #333; padding-top: 10px;">
+                <h3>Snapshots</h3>
+                <div class="header-controls">
+                    <button id="take-snapshot-btn" title="Save Snapshot">📷</button>
+                </div>
+            </div>
+            <ul id="snapshot-list"></ul>
+        </div>
+        <div class="main-content">
+            <div class="visualization-panel" id="viz-panel">
+                <h2>Visualization</h2>
+                <div class="viz-controls">
+                    <div class="control-group">
+                        <label>Animation:</label>
+                        <button id="play-btn" title="Play/Pause">▶</button>
+                        <input type="range" id="anim-slider" min="0" max="100" value="100" disabled>
+                        <span id="step-counter">0/0</span>
+                    </div>
+                    <div class="control-group">
+                        <label><input type="checkbox" id="show-coords"> Show Coords</label>
+                    </div>
+                </div>
+                <div id="grid-container"></div>
+                <div id="status-bar"></div>
+                
+                <!-- Metrics Panel -->
+                <div id="metrics-panel" class="metrics-panel" style="display: none;">
+                    <div class="metric-card">
+                        <span class="metric-label">Total Length</span>
+                        <span class="metric-value" id="metric-length">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Turns</span>
+                        <span class="metric-value" id="metric-turns">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Optimality</span>
+                        <span class="metric-value" id="metric-optimality">-</span>
+                        <span class="metric-sub" id="metric-optimality-sub"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="resizer" id="dragMe"></div>
+            <div class="code-panel" id="code-panel">
+                <div class="panel-header">
+                    <h2>Solution</h2>
+                    <select id="language-select" class="lang-select">
+                        <option value="java">Java</option>
+                        <option value="python">Python</option>
+                        <option value="cpp">C++</option>
+                    </select>
+                </div>
+                <div id="monaco-editor-container"></div>
+                <div class="controls">
+                    <button id="run-btn" title="Ctrl+Enter">Run Code</button>
+                    <button id="run-all-btn">Run All Tests</button>
+                    <button id="show-expected-btn">Show Expected Output</button>
+                </div>
+                <div id="console-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Problem Modal -->
+    <div id="problem-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" id="close-problem">&times;</span>
+            <h2>Arcane Grid Reconnection</h2>
+            <div class="problem-text">
+                <p>The Arcan Council's dimensional gateway grid has destabilized. As the Grand Arcanist, you must restore the flow of magical energy by reconnecting matching rune pairs scattered across the grid.</p>
+                <p><strong>The Golden Rule:</strong> Energy channels are volatile! They must remain completely isolated. Paths cannot cross each other, nor can they share any grid nodes.</p>
+                
+                <h3>Task</h3>
+                <p>Write a program that takes a grid configuration of paired runes and calculates valid, non-overlapping paths to connect each pair.</p>
+                
+                <h3>Input Format</h3>
+                <p>The input is a stream of integers containing:</p>
+                <pre>rows cols n_pairs [rune_id node_index]...</pre>
+                <ul>
+                    <li><code>rows</code>, <code>cols</code>: Dimensions of the grid.</li>
+                    <li><code>n_pairs</code>: The number of rune pairs to connect.</li>
+                    <li><code>rune_id</code>: The identifier for a rune type (e.g., 1, 2, 3).</li>
+                    <li><code>node_index</code>: The linear position of the rune on the grid (<code>row * cols + col</code>).</li>
+                </ul>
+                
+                <h3>Constraints</h3>
+                <ul>
+                    <li>Grid dimensions: Up to 14×14.</li>
+                    <li>Rune IDs: Positive integers.</li>
+                    <li>Each <code>rune_id</code> appears exactly twice (one start, one end).</li>
+                    <li>Paths must be strictly non-overlapping (no shared cells).</li>
+                </ul>
+                
+                <h3>Output Format</h3>
+                <p>Output the solution in the following format:</p>
+                <pre>&lt;number_of_channels&gt;
+&lt;origin_index&gt; &lt;num_steps&gt; &lt;dir_1&gt; &lt;dir_2&gt; ...</pre>
+                <ul>
+                    <li><code>number_of_channels</code>: Total number of connected pairs.</li>
+                    <li><code>origin_index</code>: The starting node index of the path.</li>
+                    <li><code>num_steps</code>: The number of moves in the path.</li>
+                    <li><code>dir</code>: Direction command - <code>N</code> (North), <code>S</code> (South), <code>E</code> (East), <code>W</code> (West).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="results-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" id="close-results">&times;</span>
+            <h2>Batch Execution Results</h2>
+            <div id="batch-progress-bar"><div class="progress-fill"></div></div>
+            <div id="batch-status">Ready to run</div>
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>Test Case</th>
+                        <th>Status</th>
+                        <th>Time</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
